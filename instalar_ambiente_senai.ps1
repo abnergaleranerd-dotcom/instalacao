@@ -156,6 +156,128 @@ Escrever-Etapa "5. Banco de Dados"
 Instalar-Winget "Oracle.MySQL"           "MySQL Server"
 Instalar-Winget "Oracle.MySQLWorkbench"  "MySQL Workbench"
 
+# Configurar MySQL: usuario root / senha senai105
+Escrever-Etapa "5.1 Configurando MySQL (root / senai105)"
+
+# Aguardar o servico do MySQL iniciar apos a instalacao
+Write-Host "   Aguardando servico MySQL iniciar..." -NoNewline
+$tentativas = 0
+$servicoOK  = $false
+do {
+    Start-Sleep -Seconds 3
+    $tentativas++
+    $servico = Get-Service -Name "MySQL*" -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "Running" }
+    if ($servico) { $servicoOK = $true }
+} while (-not $servicoOK -and $tentativas -lt 10)
+
+if (-not $servicoOK) {
+    Write-Host " servico nao encontrado, tentando iniciar..." -ForegroundColor Yellow
+    Start-Service -Name "MySQL*" -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 5
+}
+Write-Host " OK" -ForegroundColor Green
+
+# Localizar o mysqladmin e mysql nos caminhos padrao de instalacao
+$mysqlPaths = @(
+    "C:\Program Files\MySQL\MySQL Server 8.0\bin",
+    "C:\Program Files\MySQL\MySQL Server 8.4\bin",
+    "C:\Program Files\MySQL\MySQL Server 9.0\bin",
+    "C:\MySQL\bin"
+)
+
+$mysqlBin = $null
+foreach ($caminho in $mysqlPaths) {
+    if (Test-Path "$caminho\mysql.exe") {
+        $mysqlBin = $caminho
+        break
+    }
+}
+
+# Se nao encontrou nos caminhos fixos, busca no PATH do sistema
+if (-not $mysqlBin) {
+    $mysqlExe = Get-Command mysql.exe -ErrorAction SilentlyContinue
+    if ($mysqlExe) {
+        $mysqlBin = Split-Path $mysqlExe.Source
+    }
+}
+
+if ($mysqlBin) {
+    Write-Host "   MySQL encontrado em: $mysqlBin" -ForegroundColor DarkGray
+
+    # Adicionar ao PATH da sessao atual
+    $env:Path = "$mysqlBin;" + $env:Path
+
+    # Verificar se existe senha temporaria gerada pelo instalador
+    $logErro = "C:\ProgramData\MySQL\MySQL Server 8.0\Data\*.err"
+    $arquivosLog = Get-Item $logErro -ErrorAction SilentlyContinue
+    $senhaTemp = $null
+
+    if ($arquivosLog) {
+        $conteudoLog = Get-Content $arquivosLog[-1] -ErrorAction SilentlyContinue
+        $linhaTemp   = $conteudoLog | Select-String "temporary password"
+        if ($linhaTemp) {
+            $senhaTemp = ($linhaTemp.Line -split "root@localhost: ")[-1].Trim()
+            Write-Host "   Senha temporaria detectada no log." -ForegroundColor DarkGray
+        }
+    }
+
+    # ── Cenario 1: MySQL recem instalado SEM senha (instalacao padrao via winget) ──
+    Write-Host "   Definindo senha root como 'senai105'..." -NoNewline
+    $sqlComandos = @"
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'senai105';
+FLUSH PRIVILEGES;
+"@
+
+    $sqlComandos | & "$mysqlBin\mysql.exe" -u root --connect-expired-password 2>&1 | Out-Null
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host " OK" -ForegroundColor Green
+    } else {
+        # ── Cenario 2: Tentativa com senha temporaria (se detectada) ──
+        if ($senhaTemp) {
+            Write-Host " tentando com senha temporaria..." -NoNewline
+            $sqlComandos | & "$mysqlBin\mysql.exe" -u root -p"$senhaTemp" --connect-expired-password 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host " OK" -ForegroundColor Green
+            } else {
+                Write-Host " FALHOU - Configure manualmente (veja README)" -ForegroundColor Red
+                $totalErros++
+            }
+        } else {
+            Write-Host " FALHOU - Configure manualmente (veja README)" -ForegroundColor Red
+            $totalErros++
+        }
+    }
+
+    # Criar banco de dados padrao do curso
+    Write-Host "   Criando banco 'alisafe_db'..." -NoNewline
+    $sqlBanco = @"
+CREATE DATABASE IF NOT EXISTS alisafe_db
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+"@
+    $sqlBanco | & "$mysqlBin\mysql.exe" -u root -psenai105 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host " OK" -ForegroundColor Green
+    } else {
+        Write-Host " FALHOU (banco pode ser criado depois pelo Workbench)" -ForegroundColor Yellow
+    }
+
+    # Adicionar mysql ao PATH permanente do sistema
+    Write-Host "   Adicionando MySQL ao PATH do sistema..." -NoNewline
+    $pathAtual = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    if ($pathAtual -notlike "*$mysqlBin*") {
+        [System.Environment]::SetEnvironmentVariable("Path", "$pathAtual;$mysqlBin", "Machine")
+    }
+    Write-Host " OK" -ForegroundColor Green
+
+} else {
+    Write-Host "   AVISO: MySQL nao localizado para configuracao automatica." -ForegroundColor Yellow
+    Write-Host "   Configure manualmente no MySQL Workbench:" -ForegroundColor Yellow
+    Write-Host "   Usuario: root  |  Senha: senai105" -ForegroundColor Cyan
+    $totalErros++
+}
+
 # ─────────────────────────────────────────────
 # 6. FERRAMENTAS DE API E MODELAGEM
 # ─────────────────────────────────────────────
@@ -216,11 +338,12 @@ if ($vscodePath) {
 Escrever-Etapa "10. Verificacao Final do Ambiente"
 
 $checks = @(
-    @{ cmd = "python --version";         nome = "Python"   },
-    @{ cmd = "pip show flask";           nome = "Flask"    },
-    @{ cmd = "git --version";            nome = "Git"      },
-    @{ cmd = "java --version";           nome = "Java"     },
-    @{ cmd = "mysql --version";          nome = "MySQL"    }
+    @{ cmd = "python --version";                                    nome = "Python"        },
+    @{ cmd = "pip show flask";                                      nome = "Flask"         },
+    @{ cmd = "pip show mysql-connector-python";                     nome = "mysql-connector"},
+    @{ cmd = "git --version";                                       nome = "Git"           },
+    @{ cmd = "java --version";                                      nome = "Java JDK"      },
+    @{ cmd = "mysql --version";                                     nome = "MySQL (cli)"   }
 )
 
 foreach ($check in $checks) {
@@ -235,6 +358,32 @@ foreach ($check in $checks) {
     } catch {
         Write-Host " NAO ENCONTRADO" -ForegroundColor Yellow
     }
+}
+
+# Teste de conexao MySQL com as credenciais configuradas
+Write-Host "   MySQL conexao (root/senai105)..." -NoNewline
+try {
+    $testeCon = "SELECT 'Conexao OK' AS status;" | mysql -u root -psenai105 --silent 2>&1
+    if ($testeCon -like "*Conexao OK*") {
+        Write-Host " OK  (root@localhost autenticado)" -ForegroundColor Green
+    } else {
+        Write-Host " FALHOU - verifique a senha no Workbench" -ForegroundColor Red
+    }
+} catch {
+    Write-Host " NAO TESTADO (MySQL fora do PATH nesta sessao)" -ForegroundColor Yellow
+}
+
+# Teste do banco alisafe_db
+Write-Host "   Banco 'alisafe_db'..." -NoNewline
+try {
+    $testeBanco = "SHOW DATABASES LIKE 'alisafe_db';" | mysql -u root -psenai105 --silent 2>&1
+    if ($testeBanco -like "*alisafe_db*") {
+        Write-Host " OK" -ForegroundColor Green
+    } else {
+        Write-Host " nao encontrado (crie via Workbench)" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host " NAO TESTADO" -ForegroundColor Yellow
 }
 
 # ─────────────────────────────────────────────
