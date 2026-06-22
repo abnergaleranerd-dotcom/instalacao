@@ -29,14 +29,12 @@ Stack: Python + Flask + MySQL · Cenário: AliSafe / SisTrac
 | Senha    | `senai105` |
 | Host     | `localhost`|
 | Porta    | `3306`     |
-| Banco    | `alisafe_db` |
 
 > **String de conexão Flask:**
 > ```python
 > app.config['MYSQL_HOST']     = 'localhost'
 > app.config['MYSQL_USER']     = 'root'
 > app.config['MYSQL_PASSWORD'] = 'senai105'
-> app.config['MYSQL_DB']       = 'alisafe_db'
 > ```
 
 ### Configuração manual (se o script falhar no MySQL)
@@ -46,10 +44,6 @@ Abrir o **MySQL Workbench**, conectar com usuário `root` sem senha e rodar:
 ```sql
 ALTER USER 'root'@'localhost' IDENTIFIED BY 'senai105';
 FLUSH PRIVILEGES;
-
-CREATE DATABASE IF NOT EXISTS alisafe_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
 ```
 
 ---
@@ -95,7 +89,7 @@ python --version
 pip show flask
 git --version
 java --version
-mysql -u root -psenai105 -e "SHOW DATABASES;"
+mysql -u root -psenai105 -e "SELECT 'Conexao OK';"
 ```
 Todos devem retornar uma versão ou resultado sem erro.
 

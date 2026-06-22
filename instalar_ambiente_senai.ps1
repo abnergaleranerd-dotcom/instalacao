@@ -249,20 +249,6 @@ FLUSH PRIVILEGES;
         }
     }
 
-    # Criar banco de dados padrao do curso
-    Write-Host "   Criando banco 'alisafe_db'..." -NoNewline
-    $sqlBanco = @"
-CREATE DATABASE IF NOT EXISTS alisafe_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-"@
-    $sqlBanco | & "$mysqlBin\mysql.exe" -u root -psenai105 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host " OK" -ForegroundColor Green
-    } else {
-        Write-Host " FALHOU (banco pode ser criado depois pelo Workbench)" -ForegroundColor Yellow
-    }
-
     # Adicionar mysql ao PATH permanente do sistema
     Write-Host "   Adicionando MySQL ao PATH do sistema..." -NoNewline
     $pathAtual = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -373,18 +359,7 @@ try {
     Write-Host " NAO TESTADO (MySQL fora do PATH nesta sessao)" -ForegroundColor Yellow
 }
 
-# Teste do banco alisafe_db
-Write-Host "   Banco 'alisafe_db'..." -NoNewline
-try {
-    $testeBanco = "SHOW DATABASES LIKE 'alisafe_db';" | mysql -u root -psenai105 --silent 2>&1
-    if ($testeBanco -like "*alisafe_db*") {
-        Write-Host " OK" -ForegroundColor Green
-    } else {
-        Write-Host " nao encontrado (crie via Workbench)" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host " NAO TESTADO" -ForegroundColor Yellow
-}
+
 
 # ─────────────────────────────────────────────
 # RESUMO FINAL
